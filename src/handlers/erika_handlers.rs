@@ -160,6 +160,16 @@ pub async fn erika_panel(
 
     let content = maud::html! {
         div class="max-w-2xl mx-auto bg-gray-800 p-8 rounded-lg shadow-lg" {
+            // --- NOWA SEKCJA: WYŚWIETLANIE AVATARA ---
+            @if let Some(avatar_url) = &erika_data.profile_image_url {
+                img src=(avatar_url) alt="Avatar" class="w-32 h-32 rounded-full mx-auto mb-6 object-cover border-4 border-blue-500";
+            } @else {
+                // Placeholder jeśli nie ma zdjęcia
+                div class="w-32 h-32 rounded-full mx-auto mb-6 bg-gray-700 flex items-center justify-center border-4 border-gray-600" {
+                    span class="text-gray-400" { "Brak zdjęcia" }
+                }
+            }
+
             h1 class="text-3xl font-bold text-white mb-2" { "Witaj w panelu, " (erika_data.username) "!" }
             p class="text-sm text-gray-400 mb-6" { "Twoje ID: " (erika_data.id) }
             hr class="border-gray-700 my-6";
