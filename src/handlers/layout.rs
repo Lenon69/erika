@@ -11,7 +11,10 @@ pub fn page(title: &str, content: Markup) -> Markup {
             head {
                 meta charset="utf-8";
                 meta name="viewport" content="width=device-width, initial-scale=1.0";
+                link rel="preconnect" href="https://cdn.jsdelivr.net";
                 script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4" {}
+                script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.6/dist/htmx.min.js" defer {}
+                script src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.9/dist/cdn.min.js" defer {}
                 title { (title) " - Erika" }
             }
             body class="bg-gray-900 text-gray-200 antialiased" {
