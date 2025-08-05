@@ -1,12 +1,16 @@
 // src/handlers/erika_handlers.rs
 
 use crate::{app_state::AppState, errors::AppError, models::erika::Erika};
+use axum::extract::Multipart;
 use axum::{
     Form,
     extract::State,
     response::{Html, IntoResponse, Redirect, Response},
 };
 use serde::Deserialize;
+use sqlx::types::chrono;
+use std::path::Path;
+use tokio::fs;
 use tower_sessions::Session;
 use tracing::{info, warn};
 use uuid::Uuid;
@@ -25,12 +29,6 @@ pub struct RegisterErikaPayload {
 pub struct LoginPayload {
     pub username: String,
     pub password: String,
-}
-
-#[derive(Deserialize)]
-pub struct UpdateProfilePayload {
-    pub username: String,
-    pub email: String,
 }
 
 // Handler formularza rejestracji
@@ -172,10 +170,15 @@ pub async fn erika_panel(
 
             h1 class="text-3xl font-bold text-white mb-2" { "Witaj w panelu, " (erika_data.username) "!" }
             p class="text-sm text-gray-400 mb-6" { "Twoje ID: " (erika_data.id) }
+
+            a href="/panel/galleries" class="inline-block bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-md transition duration-300 mb-6" {
+                "Zarządzaj galeriami"
+            }
             hr class="border-gray-700 my-6";
 
             h2 class="text-2xl font-bold text-white mb-4" { "Edytuj swój profil" }
-            form action="/panel" method="post" {
+            // WAŻNE: Dodajemy enctype, aby formularz mógł wysyłać pliki
+            form action="/panel" method="post" enctype="multipart/form-data" {
                 div class="mb-4" {
                     label for="username" class="block text-gray-300 text-sm font-bold mb-2" { "Nazwa użytkownika:" }
                     input type="text" name="username" value=(erika_data.username) required
@@ -186,6 +189,14 @@ pub async fn erika_panel(
                     input type="email" name="email" value=(erika_data.email) required
                           class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500";
                 }
+
+                // --- NOWE POLE: WYBÓR PLIKU ---
+                div class="mb-6" {
+                    label for="avatar" class="block text-gray-300 text-sm font-bold mb-2" { "Zmień zdjęcie profilowe:" }
+                    input type="file" id="avatar" name="avatar" accept="image/png, image/jpeg"
+                          class="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700";
+                }
+
                 button type="submit"
                        class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md transition duration-300" { "Zapisz zmiany" }
             }
@@ -194,18 +205,59 @@ pub async fn erika_panel(
     Ok(Html(layout::page("Panel Eriki", content).into_string()))
 }
 
-// Handler aktualizacji profilu (bez zmian w logice, zwraca Redirect)
+// NOWY handler do aktualizacji profilu (obsługuje pliki)
 pub async fn update_erika_profile(
     session: Session,
     State(state): State<AppState>,
-    Form(payload): Form<UpdateProfilePayload>,
+    mut multipart: Multipart, // Używamy ekstraktora Multipart
 ) -> Result<Redirect, AppError> {
     let erika_id = match session.get::<Uuid>("erika_id").await {
         Ok(Some(id)) => id,
         _ => return Err(AppError::InternalServerError),
     };
 
-    Erika::update_profile(erika_id, &payload.username, &payload.email, &state.db)
+    let mut username = String::new();
+    let mut email = String::new();
+    let mut avatar_url: Option<String> = None;
+
+    // Przetwarzamy każdą część formularza multipart
+    while let Some(field) = multipart.next_field().await.unwrap() {
+        let name = field.name().unwrap_or("").to_string();
+        let file_name = field.file_name().unwrap_or("").to_string();
+        let data = field.bytes().await.unwrap();
+
+        match name.as_str() {
+            "username" => username = String::from_utf8(data.to_vec()).unwrap_or_default(),
+            "email" => email = String::from_utf8(data.to_vec()).unwrap_or_default(),
+            "avatar" if !data.is_empty() => {
+                // Tworzymy unikalną nazwę pliku, aby uniknąć konfliktów
+                let extension = Path::new(&file_name)
+                    .extension()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("jpg");
+                let unique_filename = format!(
+                    "{}_{}.{}",
+                    erika_id,
+                    chrono::Utc::now().timestamp(),
+                    extension
+                );
+                let file_path_str = format!("uploads/{}", unique_filename);
+
+                // Zapisujemy plik na serwerze
+                fs::write(&file_path_str, &data)
+                    .await
+                    .map_err(|_| AppError::InternalServerError)?;
+                info!("Zapisano nowy avatar: {}", file_path_str);
+
+                // Zapisujemy publiczny URL, a nie ścieżkę systemową
+                avatar_url = Some(format!("/{}", file_path_str));
+            }
+            _ => {}
+        }
+    }
+
+    // Wywołujemy zaktualizowaną metodę z modelu
+    Erika::update_profile(erika_id, &username, &email, avatar_url, &state.db)
         .await
         .map_err(|_| AppError::InternalServerError)?;
 

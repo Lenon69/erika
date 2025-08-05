@@ -1,6 +1,9 @@
 // src/router.rs
 
-use crate::{app_state::AppState, handlers::erika_handlers};
+use crate::{
+    app_state::AppState,
+    handlers::{erika_handlers, gallery_handlers},
+};
 use axum::{
     Router, // Dodajemy `post`
     routing::{get, post},
@@ -18,6 +21,10 @@ pub fn create_router(app_state: AppState) -> Router {
         .route(
             "/panel",
             get(erika_handlers::erika_panel).post(erika_handlers::update_erika_profile),
+        )
+        .route(
+            "/panel/galleries",
+            get(gallery_handlers::show_galleries_page),
         )
         .nest_service("/uploads", ServeDir::new("uploads"))
         .with_state(app_state)

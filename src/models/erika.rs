@@ -14,6 +14,7 @@ pub struct Erika {
     pub username: String,
     pub email: String,
     pub password_hash: String,
+    pub profile_image_url: Option<String>,
 }
 
 impl Erika {
@@ -66,7 +67,7 @@ impl Erika {
     ) -> Result<Option<Self>, sqlx::Error> {
         sqlx::query_as!(
             Erika,
-            "SELECT id, username, email, password_hash FROM erikas WHERE LOWER(username) = LOWER($1)",
+            "SELECT id, username, email, password_hash, profile_image_url FROM erikas WHERE LOWER(username) = LOWER($1)",
             username
         )
         .fetch_optional(db)
@@ -111,7 +112,7 @@ impl Erika {
     pub async fn find_by_id(id: Uuid, db: &PgPool) -> Result<Option<Self>, sqlx::Error> {
         sqlx::query_as!(
             Erika,
-            "SELECT id, username, email, password_hash FROM erikas WHERE id = $1",
+            "SELECT id, username, email, password_hash, profile_image_url FROM erikas WHERE id = $1",
             id
         )
         .fetch_optional(db)
@@ -123,12 +124,14 @@ impl Erika {
         id: Uuid,
         username: &str,
         email: &str, // Dodajemy email do aktualizacji
+        avatar_url: Option<String>,
         db: &PgPool,
     ) -> Result<(), sqlx::Error> {
         sqlx::query!(
-            "UPDATE erikas SET username = $1, email = $2 WHERE id = $3",
+            "UPDATE erikas SET username = $1, email = $2, profile_image_url = COALESCE($3, profile_image_url) WHERE id = $4",
             username,
             email,
+            avatar_url,
             id
         )
         .execute(db)

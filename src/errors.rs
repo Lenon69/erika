@@ -1,7 +1,11 @@
-use axum::{response::{IntoResponse, Response}, http::StatusCode};
+use axum::{
+    http::StatusCode,
+    response::{IntoResponse, Response},
+};
 
 pub enum AppError {
     InternalServerError,
+    Unauthorized,
 }
 
 impl IntoResponse for AppError {
@@ -10,6 +14,10 @@ impl IntoResponse for AppError {
             AppError::InternalServerError => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Wystąpił wewnętrzny błąd serwera",
+            ),
+            AppError::Unauthorized => (
+                StatusCode::UNAUTHORIZED,
+                "Brak autoryzacji. Musisz być zalogowany.",
             ),
         };
         (status, error_message).into_response()
