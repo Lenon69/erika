@@ -1,7 +1,9 @@
 // src/handlers/erika_handlers.rs
 
+use crate::models::gallery::Gallery;
 use crate::{app_state::AppState, errors::AppError, models::erika::Erika};
 use axum::extract::Multipart;
+use axum::extract::Path as AxumPath;
 use axum::{
     Form,
     extract::State,
@@ -171,6 +173,25 @@ pub async fn erika_panel(
             h1 class="text-3xl font-bold text-white mb-2" { "Witaj w panelu, " (erika_data.username) "!" }
             p class="text-sm text-gray-400 mb-6" { "Twoje ID: " (erika_data.id) }
 
+
+            // --- NOWE PRZYCISKI NAWIGACYJNE ---
+            div class="flex items-center justify-center gap-4 mb-6" {
+                a href="/panel/galleries" class="inline-block bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-md transition duration-300" {
+                    "Zarządzaj galeriami"
+                }
+                a href=(format!("/erika/{}", erika_data.username)) target="_blank" class="inline-block bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition duration-300" {
+                    "Zobacz profil publiczny"
+                }
+                // Formularz do wylogowania
+                form action="/logout" method="post" {
+                    button type="submit" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md transition duration-300" {
+                        "Wyloguj"
+                    }
+                }
+            }
+            // --- KONIEC ---
+
+
             a href="/panel/galleries" class="inline-block bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-md transition duration-300 mb-6" {
                 "Zarządzaj galeriami"
             }
@@ -188,6 +209,14 @@ pub async fn erika_panel(
                     label for="email" class="block text-gray-300 text-sm font-bold mb-2" { "Email:" }
                     input type="email" name="email" value=(erika_data.email) required
                           class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500";
+                }
+
+                div class="mb-6" {
+                    label for="bio" class="block text-gray-300 text-sm font-bold mb-2" { "Krótkie bio:" }
+                    textarea name="bio" rows="3"
+                              class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500" {
+                        (erika_data.bio.as_deref().unwrap_or(""))
+                    }
                 }
 
                 // --- NOWE POLE: WYBÓR PLIKU ---
@@ -218,6 +247,7 @@ pub async fn update_erika_profile(
 
     let mut username = String::new();
     let mut email = String::new();
+    let mut bio = String::new(); // <-- DODAJ ZMIENNĄ
     let mut avatar_url: Option<String> = None;
 
     // Przetwarzamy każdą część formularza multipart
@@ -229,6 +259,7 @@ pub async fn update_erika_profile(
         match name.as_str() {
             "username" => username = String::from_utf8(data.to_vec()).unwrap_or_default(),
             "email" => email = String::from_utf8(data.to_vec()).unwrap_or_default(),
+            "bio" => bio = String::from_utf8(data.to_vec()).unwrap_or_default(),
             "avatar" if !data.is_empty() => {
                 // Tworzymy unikalną nazwę pliku, aby uniknąć konfliktów
                 let extension = Path::new(&file_name)
@@ -257,10 +288,154 @@ pub async fn update_erika_profile(
     }
 
     // Wywołujemy zaktualizowaną metodę z modelu
-    Erika::update_profile(erika_id, &username, &email, avatar_url, &state.db)
+    Erika::update_profile(erika_id, &username, &email, &bio, avatar_url, &state.db)
         .await
         .map_err(|_| AppError::InternalServerError)?;
 
     info!("Zaktualizowano profil dla: {}", erika_id);
     Ok(Redirect::to("/panel"))
+}
+
+// Handler do wyświetlania strony głównej
+pub async fn homepage(State(state): State<AppState>) -> Result<Html<String>, AppError> {
+    let erikas = Erika::find_active(&state.db)
+        .await
+        .map_err(|_| AppError::InternalServerError)?;
+
+    let content = maud::html! {
+        div class="max-w-7xl mx-auto" {
+            h1 class="text-4xl font-bold text-white mb-8 text-center" { "Poznaj nasze modelki" }
+
+            @if erikas.is_empty() {
+                p class="text-gray-400 text-center" { "Obecnie żadna modelka nie jest dostępna." }
+            } @else {
+                div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6" {
+                    @for erika in erikas {
+                        // Link do przyszłej strony profilowej
+                        a href=(format!("/erika/{}", erika.username)) class="bg-gray-800 rounded-lg overflow-hidden shadow-lg transform hover:-translate-y-1 transition-transform duration-300 block" {
+                            div class="relative" {
+                                img src=(erika.profile_image_url.as_deref().unwrap_or("/placeholder.jpg")) alt=(erika.username) class="w-full h-80 object-cover";
+                                // Wskaźnik statusu online
+                                @if erika.is_online {
+                                    span class="absolute top-3 right-3 block w-4 h-4 bg-green-500 rounded-full border-2 border-gray-800" title="Online" {}
+                                }
+                            }
+                            div class="p-4" {
+                                h3 class="text-xl font-bold text-white" { (erika.username) }
+                                p class="text-gray-400 mt-1 h-12 overflow-hidden" { (erika.bio.as_deref().unwrap_or("Brak opisu.")) }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    };
+    Ok(Html(layout::page("Strona Główna", content).into_string()))
+}
+
+// NOWY HANDLER: Wyświetla publiczną stronę profilową Eriki
+pub async fn show_erika_profile(
+    AxumPath(username): AxumPath<String>, // Pobieramy nazwę z URL
+    State(state): State<AppState>,
+) -> Result<Html<String>, AppError> {
+    // 1. Znajdź Erikę w bazie po jej publicznej nazwie
+    let erika = Erika::find_by_public_username(&username, &state.db)
+        .await
+        .map_err(|_| AppError::InternalServerError)?
+        .ok_or(AppError::NotFound)?; // Zwróci błąd 404, jeśli nie ma takiej Eriki
+
+    // 2. Znajdź wszystkie jej galerie
+    let galleries = Gallery::find_by_erika_id(erika.id, &state.db)
+        .await
+        .map_err(|_| AppError::InternalServerError)?;
+
+    // 3. Renderuj stronę
+    let content = maud::html! {
+        div class="max-w-4xl mx-auto" {
+            // Sekcja profilu
+            div class="bg-gray-800 p-8 rounded-lg shadow-lg flex flex-col md:flex-row items-center gap-8 mb-8" {
+                img src=(erika.profile_image_url.as_deref().unwrap_or("/placeholder.jpg")) alt=(erika.username)
+                    class="w-48 h-48 rounded-full object-cover border-4 border-purple-500 flex-shrink-0";
+                div {
+                    h1 class="text-4xl font-bold text-white" { (erika.username) }
+                    @if erika.is_online {
+                        span class="text-green-400 font-semibold" { "● Online" }
+                    } @else {
+                        span class="text-gray-400 font-semibold" { "● Offline" }
+                    }
+                    p class="text-gray-300 mt-4" { (erika.bio.as_deref().unwrap_or("Brak opisu.")) }
+                }
+            }
+
+            // Sekcja galerii
+            h2 class="text-3xl font-bold text-white mb-6" { "Płatne galerie" }
+            @if galleries.is_empty() {
+                p class="text-gray-400" { "Ta modelka nie udostępniła jeszcze żadnych galerii." }
+            } @else {
+                div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" {
+                    @for gallery in galleries {
+                        div class="bg-gray-800 rounded-lg overflow-hidden shadow-lg" {
+                            // W przyszłości tutaj będzie okładka galerii
+                            div class="w-full h-56 bg-gray-700 flex items-center justify-center" {
+                                span class="text-gray-500" { "Okładka galerii" }
+                            }
+                            div class="p-4 flex justify-between items-center" {
+                                div {
+                                    h3 class="text-lg font-bold text-white" { (gallery.name) }
+                                    // WYŚWIETLANIE CENY
+                                    @if let Some(price) = &gallery.price_pln {
+                                        p class="text-green-400 font-bold" { (price.with_scale(2).to_string()) " PLN" }
+                                    } @else {
+                                        p class="text-gray-400" { "Darmowa" }
+                                    }
+                                }
+                                // Zmieniamy link na przycisk płatności
+                                a href=(format!("/pay/gallery/{}", gallery.id)) class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md text-sm transition duration-300" {
+                                    "Odblokuj"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    };
+    Ok(Html(layout::page(&erika.username, content).into_string()))
+}
+
+pub async fn initiate_gallery_payment(
+    AxumPath(gallery_id): AxumPath<Uuid>,
+    State(state): State<AppState>,
+) -> Result<Html<String>, AppError> {
+    let gallery = Gallery::find_by_id(gallery_id, &state.db)
+        .await
+        .map_err(|_| AppError::InternalServerError)?
+        .ok_or(AppError::NotFound)?;
+
+    let price_str = gallery
+        .price_pln
+        .as_ref()
+        .map(|p| p.with_scale(2).to_string())
+        .unwrap_or_else(|| "0.00".to_string());
+
+    let message = format!(
+        "Zamierzasz odblokować galerię '{}' za {} PLN.",
+        gallery.name, price_str
+    );
+
+    let page = layout::info_page(
+        "Potwierdzenie płatności",
+        &message,
+        Some(("#", "Zapłać z PayU")),
+    );
+    Ok(Html(page.into_string()))
+}
+
+// NOWY HANDLER: Obsługuje wylogowanie
+pub async fn logout(session: Session) -> Result<Redirect, AppError> {
+    // Czyścimy sesję, usuwając wszystkie zapisane w niej dane
+    session.clear();
+    info!("Użytkownik pomyślnie wylogowany.");
+    // Przekierowujemy na stronę główną
+    Ok(Redirect::to("/"))
 }

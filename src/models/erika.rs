@@ -15,6 +15,8 @@ pub struct Erika {
     pub email: String,
     pub password_hash: String,
     pub profile_image_url: Option<String>,
+    pub bio: Option<String>,
+    pub is_online: bool,
 }
 
 impl Erika {
@@ -60,6 +62,20 @@ impl Erika {
         Ok(())
     }
 
+    /// NOWA METODA: Wyszukuje profil publiczny po nazwie użytkownika (wrażliwe na wielkość liter)
+    pub async fn find_by_public_username(
+        username: &str,
+        db: &PgPool,
+    ) -> Result<Option<Self>, sqlx::Error> {
+        sqlx::query_as!(
+            Erika,
+            "SELECT id, username, email, password_hash, profile_image_url, bio, is_online FROM erikas WHERE username = $1",
+            username
+        )
+        .fetch_optional(db)
+        .await
+    }
+
     /// Wyszukuje użytkownika w bazie po jego nazwie.
     pub async fn find_by_username(
         username: &str,
@@ -67,7 +83,7 @@ impl Erika {
     ) -> Result<Option<Self>, sqlx::Error> {
         sqlx::query_as!(
             Erika,
-            "SELECT id, username, email, password_hash, profile_image_url FROM erikas WHERE LOWER(username) = LOWER($1)",
+            "SELECT id, username, email, password_hash, bio, is_online, profile_image_url FROM erikas WHERE LOWER(username) = LOWER($1)",
             username
         )
         .fetch_optional(db)
@@ -112,11 +128,21 @@ impl Erika {
     pub async fn find_by_id(id: Uuid, db: &PgPool) -> Result<Option<Self>, sqlx::Error> {
         sqlx::query_as!(
             Erika,
-            "SELECT id, username, email, password_hash, profile_image_url FROM erikas WHERE id = $1",
+            "SELECT id, username, email, password_hash, profile_image_url, bio, is_online FROM erikas WHERE id = $1",
             id
         )
         .fetch_optional(db)
         .await
+    }
+
+    // NOWA METODA: Pobiera wszystkie aktywne (zatwierdzone i online) modelki
+    pub async fn find_active(db: &PgPool) -> Result<Vec<Self>, sqlx::Error> {
+        sqlx::query_as!(
+            Erika,
+            // Na razie bierzemy wszystkie dla testów, w przyszłości dodamy `WHERE is_approved = TRUE AND is_online = TRUE`
+            "SELECT id, username, email, password_hash, profile_image_url, bio, is_online FROM erikas ORDER BY is_online DESC, username"
+        )
+        .fetch_all(db).await
     }
 
     /// Aktualizuje profil Eriki w bazie danych.
@@ -124,14 +150,16 @@ impl Erika {
         id: Uuid,
         username: &str,
         email: &str, // Dodajemy email do aktualizacji
+        bio: &str,
         avatar_url: Option<String>,
         db: &PgPool,
     ) -> Result<(), sqlx::Error> {
         sqlx::query!(
-            "UPDATE erikas SET username = $1, email = $2, profile_image_url = COALESCE($3, profile_image_url) WHERE id = $4",
+            "UPDATE erikas SET username = $1, email = $2, bio = $3, profile_image_url = COALESCE($4, profile_image_url) WHERE id = $5",
             username,
             email,
-            avatar_url,
+            bio,
+            avatar_url.as_deref(),
             id
         )
         .execute(db)

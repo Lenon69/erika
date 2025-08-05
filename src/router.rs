@@ -12,8 +12,11 @@ use tower_http::services::ServeDir;
 
 pub fn create_router(app_state: AppState) -> Router {
     Router::new()
-        .route("/", get(erika_handlers::show_register_form))
-        .route("/register", post(erika_handlers::register_erika))
+        .route("/", get(erika_handlers::homepage))
+        .route(
+            "/register",
+            get(erika_handlers::show_register_form).post(erika_handlers::register_erika),
+        )
         .route(
             "/login",
             get(erika_handlers::show_login_form).post(erika_handlers::login_erika),
@@ -24,8 +27,26 @@ pub fn create_router(app_state: AppState) -> Router {
         )
         .route(
             "/panel/galleries",
-            get(gallery_handlers::show_galleries_page),
+            get(gallery_handlers::show_galleries_page).post(gallery_handlers::create_gallery),
         )
+        .route(
+            "/panel/galleries/{gallery_id}",
+            get(gallery_handlers::show_single_gallery_page).post(gallery_handlers::update_gallery),
+        )
+        .route(
+            "/panel/galleries/{gallery_id}/photo/{photo_id}/delete",
+            post(gallery_handlers::delete_photo),
+        )
+        .route(
+            "/panel/galleries/{gallery_id}/upload",
+            post(gallery_handlers::upload_photo),
+        )
+        .route("/erika/{username}", get(erika_handlers::show_erika_profile))
+        .route(
+            "/pay/gallery/{gallery_id}",
+            get(erika_handlers::initiate_gallery_payment),
+        )
+        .route("/logout", post(erika_handlers::logout))
         .nest_service("/uploads", ServeDir::new("uploads"))
         .with_state(app_state)
 }

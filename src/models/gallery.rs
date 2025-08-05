@@ -50,4 +50,30 @@ impl Gallery {
         .await?;
         Ok(galleries)
     }
+
+    // NOWA METODA: Aktualizuje szczegóły galerii
+    pub async fn update_details(
+        id: Uuid,
+        name: &str,
+        description: &str,
+        price_pln: Option<BigDecimal>,
+        db: &PgPool,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query!(
+            "UPDATE galleries SET name = $1, description = $2, price_pln = $3 WHERE id = $4",
+            name,
+            description,
+            price_pln,
+            id
+        )
+        .execute(db)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn find_by_id(id: Uuid, db: &PgPool) -> Result<Option<Self>, sqlx::Error> {
+        sqlx::query_as!(Gallery, "SELECT * FROM galleries WHERE id = $1", id)
+            .fetch_optional(db)
+            .await
+    }
 }

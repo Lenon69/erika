@@ -6,6 +6,7 @@ use axum::{
 pub enum AppError {
     InternalServerError,
     Unauthorized,
+    NotFound,
 }
 
 impl IntoResponse for AppError {
@@ -19,6 +20,7 @@ impl IntoResponse for AppError {
                 StatusCode::UNAUTHORIZED,
                 "Brak autoryzacji. Musisz być zalogowany.",
             ),
+            AppError::NotFound => (StatusCode::NOT_FOUND, "Nie znaleziono zasobu"),
         };
         (status, error_message).into_response()
     }

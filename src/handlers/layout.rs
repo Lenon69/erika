@@ -11,17 +11,32 @@ pub fn page(title: &str, content: Markup) -> Markup {
             head {
                 meta charset="utf-8";
                 meta name="viewport" content="width=device-width, initial-scale=1.0";
-
-                // Tutaj dodajemy skrypt Tailwind CSS v4 z CDN
                 script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4" {}
-
-                title { (title) " - LenonDev" }
+                title { (title) " - Erika" }
             }
-            // Dodajemy klasy Tailwind do body, aby ustawić ciemny motyw
             body class="bg-gray-900 text-gray-200 antialiased" {
-                // Kontener centrujący zawartość i dodający marginesy
-                div class="container mx-auto mt-10 px-4" {
-                    // Renderujemy tutaj unikalną zawartość przekazaną do funkcji
+
+                // --- NOWA SEKCJA: NAGŁÓWEK Z NAWIGACJĄ ---
+                header class="bg-gray-800/70 backdrop-blur-lg shadow-md sticky top-0 z-50" {
+                    nav class="container mx-auto px-4 py-3 flex justify-between items-center" {
+                        // Link do strony głównej (logo)
+                        a href="/" class="text-2xl font-bold text-white hover:text-purple-400 transition-colors" {
+                            "Erika"
+                        }
+
+                        // Linki do logowania i rejestracji
+                        div class="flex items-center gap-4" {
+                            a href="/login" class="text-gray-300 hover:text-white transition-colors" { "Zaloguj się" }
+                            a href="/register" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-300" {
+                                "Zarejestruj się"
+                            }
+                        }
+                    }
+                }
+
+                // Używamy `main` dla lepszej semantyki HTML
+                main class="container mx-auto mt-10 px-4" {
+                    // Renderujemy unikalną zawartość
                     (content)
                 }
             }
