@@ -168,17 +168,7 @@ pub async fn show_single_gallery_page(
             } @else {
                 div class="grid grid-cols-2 md:grid-cols-4 gap-4" {
                     @for photo in photos {
-                        div class="bg-gray-800 rounded-lg overflow-hidden shadow-lg" {
-                            img src=(photo.file_url) alt="Zdjęcie z galerii" class="w-full h-48 object-cover";
-
-                            // Formularz, który pojawi się po najechaniu na zdjęcie
-                            form action=(format!("/panel/galleries/{}/photo/{}/delete", gallery_id, photo.id)) method="post"
-                                 class="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity" {
-                                button type="submit" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md" {
-                                    "Usuń"
-                                }
-                            }
-                        }
+                        (maud::PreEscaped(render_photo_partial(gallery_id, &photo)))
                     }
                 }
             }
@@ -279,7 +269,7 @@ pub async fn delete_photo(
     AxumPath((gallery_id, photo_id)): AxumPath<(Uuid, Uuid)>,
     session: Session,
     State(state): State<AppState>,
-) -> Result<Redirect, AppError> {
+) -> Result<Html<&'static str>, AppError> {
     let _erika_id = session
         .get::<Uuid>("erika_id")
         .await
@@ -299,5 +289,67 @@ pub async fn delete_photo(
 
     info!("Usunięto zdjęcie o ID: {}", photo_id);
 
-    Ok(Redirect::to(&format!("/panel/galleries/{}", gallery_id)))
+    Ok(Html(""))
+}
+
+// NOWY HANDLER: Zwraca fragment HTML z potwierdzeniem usunięcia
+pub async fn confirm_delete_photo(
+    AxumPath((gallery_id, photo_id)): AxumPath<(Uuid, Uuid)>,
+) -> Result<Html<String>, AppError> {
+    let content = maud::html! {
+        // Ten div zastąpi zdjęcie, na którym kliknięto "Usuń"
+        div class="h-48 bg-gray-800 rounded-lg border-2 border-red-500 flex flex-col items-center justify-center p-4 text-center" {
+            p class="text-white mb-4" { "Czy na pewno chcesz usunąć to zdjęcie?" }
+            div class="flex gap-4" {
+                // Przycisk, który faktycznie usuwa zdjęcie (metodą POST)
+                button hx-post=(format!("/panel/galleries/{}/photo/{}/delete", gallery_id, photo_id))
+                       hx-target="closest .photo-container" // Cel: najbliższy kontener zdjęcia
+                       hx-swap="outerHTML" // Akcja: zamień cały kontener na pustą odpowiedź (efekt zniknięcia)
+                       class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md" {
+                    "Tak, usuń"
+                }
+                // Przycisk, który anuluje i przywraca widok zdjęcia
+                button hx-get=(format!("/panel/galleries/{}/photo/{}", gallery_id, photo_id))
+                       hx-target="closest .photo-container"
+                       hx-swap="outerHTML"
+                       class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md" {
+                    "Anuluj"
+                }
+            }
+        }
+    };
+    Ok(Html(content.into_string()))
+}
+
+// Potrzebujemy też handlera, który zwróci HTML dla pojedynczego zdjęcia (do anulowania)
+pub async fn get_photo_partial(
+    AxumPath((gallery_id, photo_id)): AxumPath<(Uuid, Uuid)>,
+    State(state): State<AppState>,
+) -> Result<Html<String>, AppError> {
+    // Tutaj normalnie pobralibyśmy dane zdjęcia z bazy, ale na razie uprośćmy
+    // i załóżmy, że potrzebujemy tylko URL-a, który już mamy w innej funkcji.
+    // W przyszłości można to zoptymalizować.
+    let photo = crate::models::photo::Photo::find_by_id(photo_id, &state.db)
+        .await // <-- POTRZEBUJEMY TEJ FUNKCJI
+        .map_err(|_| AppError::InternalServerError)?
+        .ok_or(AppError::NotFound)?;
+
+    Ok(Html(render_photo_partial(gallery_id, &photo)))
+}
+
+// Funkcja pomocnicza do renderowania fragmentu HTML dla jednego zdjęcia
+fn render_photo_partial(gallery_id: Uuid, photo: &crate::models::photo::Photo) -> String {
+    maud::html! {
+        div class="photo-container bg-gray-800 rounded-lg overflow-hidden shadow-lg relative group" {
+            img src=(photo.file_url) alt="Zdjęcie z galerii" class="w-full h-48 object-cover";
+            div class="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity" {
+                button hx-get=(format!("/panel/photo/delete-confirm/{}/{}", gallery_id, photo.id))
+                       hx-target="closest .photo-container"
+                       hx-swap="outerHTML"
+                       class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md" {
+                    "Usuń"
+                }
+            }
+        }
+    }.into_string()
 }

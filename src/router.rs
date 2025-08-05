@@ -38,6 +38,14 @@ pub fn create_router(app_state: AppState) -> Router {
             post(gallery_handlers::delete_photo),
         )
         .route(
+            "/panel/photo/delete-confirm/{gallery_id}/{photo_id}",
+            get(gallery_handlers::confirm_delete_photo),
+        )
+        .route(
+            "/panel/galleries/{gallery_id}/photo/{photo_id}",
+            get(gallery_handlers::get_photo_partial),
+        )
+        .route(
             "/panel/galleries/{gallery_id}/upload",
             post(gallery_handlers::upload_photo),
         )

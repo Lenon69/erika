@@ -53,4 +53,10 @@ impl Photo {
             .await?;
         Ok(())
     }
+
+    pub async fn find_by_id(id: Uuid, db: &PgPool) -> Result<Option<Self>, sqlx::Error> {
+        sqlx::query_as!(Photo, "SELECT * FROM photos WHERE id = $1", id)
+            .fetch_optional(db)
+            .await
+    }
 }
