@@ -159,78 +159,83 @@ pub async fn erika_panel(
     };
 
     let content = maud::html! {
-        div class="max-w-2xl mx-auto bg-gray-800 p-8 rounded-lg shadow-lg" {
-            // --- NOWA SEKCJA: WYŚWIETLANIE AVATARA ---
-            @if let Some(avatar_url) = &erika_data.profile_image_url {
-                img src=(avatar_url) alt="Avatar" class="w-32 h-32 rounded-full mx-auto mb-6 object-cover border-4 border-blue-500";
-            } @else {
-                // Placeholder jeśli nie ma zdjęcia
-                div class="w-32 h-32 rounded-full mx-auto mb-6 bg-gray-700 flex items-center justify-center border-4 border-gray-600" {
-                    span class="text-gray-400" { "Brak zdjęcia" }
-                }
-            }
-
-            h1 class="text-3xl font-bold text-white mb-2" { "Witaj w panelu, " (erika_data.username) "!" }
-            p class="text-sm text-gray-400 mb-6" { "Twoje ID: " (erika_data.id) }
-
-
-            // --- NOWE PRZYCISKI NAWIGACYJNE ---
-            div class="flex items-center justify-center gap-4 mb-6" {
-                a href="/panel/galleries" class="inline-block bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-md transition duration-300" {
-                    "Zarządzaj galeriami"
-                }
-                a href=(format!("/erika/{}", erika_data.username)) target="_blank" class="inline-block bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition duration-300" {
-                    "Zobacz profil publiczny"
-                }
-                // Formularz do wylogowania
-                form action="/logout" method="post" {
-                    button type="submit" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md transition duration-300" {
-                        "Wyloguj"
-                    }
-                }
-            }
-            // --- KONIEC ---
-
-
-            a href="/panel/galleries" class="inline-block bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-md transition duration-300 mb-6" {
-                "Zarządzaj galeriami"
-            }
-            hr class="border-gray-700 my-6";
-
-            h2 class="text-2xl font-bold text-white mb-4" { "Edytuj swój profil" }
-            // WAŻNE: Dodajemy enctype, aby formularz mógł wysyłać pliki
-            form action="/panel" method="post" enctype="multipart/form-data" {
-                div class="mb-4" {
-                    label for="username" class="block text-gray-300 text-sm font-bold mb-2" { "Nazwa użytkownika:" }
-                    input type="text" name="username" value=(erika_data.username) required
-                          class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500";
-                }
-                div class="mb-6" {
-                    label for="email" class="block text-gray-300 text-sm font-bold mb-2" { "Email:" }
-                    input type="email" name="email" value=(erika_data.email) required
-                          class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500";
-                }
-
-                div class="mb-6" {
-                    label for="bio" class="block text-gray-300 text-sm font-bold mb-2" { "Krótkie bio:" }
-                    textarea name="bio" rows="3"
-                              class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500" {
-                        (erika_data.bio.as_deref().unwrap_or(""))
+            div class="max-w-2xl mx-auto bg-gray-800 p-8 rounded-lg shadow-lg" {
+                // --- NOWA SEKCJA: WYŚWIETLANIE AVATARA ---
+                @if let Some(avatar_url) = &erika_data.profile_image_url {
+                    img src=(avatar_url) alt="Avatar" class="w-32 h-32 rounded-full mx-auto mb-6 object-cover border-4 border-blue-500";
+                } @else {
+                    // Placeholder jeśli nie ma zdjęcia
+                    div class="w-32 h-32 rounded-full mx-auto mb-6 bg-gray-700 flex items-center justify-center border-4 border-gray-600" {
+                        span class="text-gray-400" { "Brak zdjęcia" }
                     }
                 }
 
-                // --- NOWE POLE: WYBÓR PLIKU ---
-                div class="mb-6" {
-                    label for="avatar" class="block text-gray-300 text-sm font-bold mb-2" { "Zmień zdjęcie profilowe:" }
-                    input type="file" id="avatar" name="avatar" accept="image/png, image/jpeg"
-                          class="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700";
-                }
+                h1 class="text-3xl font-bold text-white mb-2" { "Witaj w panelu, " (erika_data.username) "!" }
+                p class="text-sm text-gray-400 mb-6" { "Twoje ID: " (erika_data.id) }
 
-                button type="submit"
-                       class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md transition duration-300" { "Zapisz zmiany" }
+
+                // --- NOWY PRZYCISK STATUSU ---
+                div class="my-6" {
+                    (maud::PreEscaped(render_status_button(erika_data.is_online)))
+                }
+                // --- KONIEC ---
+
+                // --- NOWE PRZYCISKI NAWIGACYJNE ---
+                div class="flex flex-col sm:flex-row items-center justify-center gap-4 mb-6" {
+                    a href="/panel/stream" class="w-full sm:w-auto inline-block bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md transition duration-300" {
+                        "Przejdź do Kamerki"
+    }
+                    a href="/panel/galleries" class="w-full sm:w-auto inline-block bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-md transition duration-300" {
+                        "Zarządzaj galeriami"
+                    }
+                    a href=(format!("/erika/{}", erika_data.username)) target="_blank" class="w-full sm:w-auto inline-block bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition duration-300" {
+                        "Zobacz profil publiczny"
+                    }
+                    // Formularz do wylogowania
+                    form action="/logout" method="post" class="w-full sm:w-auto" {
+                        button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md transition duration-300" {
+                            "Wyloguj"
+                        }
+                    }
+                }
+                // --- KONIEC ---
+
+                hr class="border-gray-700 my-6";
+
+                h2 class="text-2xl font-bold text-white mb-4" { "Edytuj swój profil" }
+                // WAŻNE: Dodajemy enctype, aby formularz mógł wysyłać pliki
+                form action="/panel" method="post" enctype="multipart/form-data" {
+                    div class="mb-4" {
+                        label for="username" class="block text-gray-300 text-sm font-bold mb-2" { "Nazwa użytkownika:" }
+                        input type="text" name="username" value=(erika_data.username) required
+                              class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500";
+                    }
+                    div class="mb-6" {
+                        label for="email" class="block text-gray-300 text-sm font-bold mb-2" { "Email:" }
+                        input type="email" name="email" value=(erika_data.email) required
+                              class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500";
+                    }
+
+                    div class="mb-6" {
+                        label for="bio" class="block text-gray-300 text-sm font-bold mb-2" { "Krótkie bio:" }
+                        textarea name="bio" rows="3"
+                                  class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500" {
+                            (erika_data.bio.as_deref().unwrap_or(""))
+                        }
+                    }
+
+                    // --- NOWE POLE: WYBÓR PLIKU ---
+                    div class="mb-6" {
+                        label for="avatar" class="block text-gray-300 text-sm font-bold mb-2" { "Zmień zdjęcie profilowe:" }
+                        input type="file" id="avatar" name="avatar" accept="image/png, image/jpeg"
+                              class="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700";
+                    }
+
+                    button type="submit"
+                           class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md transition duration-300" { "Zapisz zmiany" }
+                }
             }
-        }
-    };
+        };
     Ok(Html(layout::page("Panel Eriki", content).into_string()))
 }
 
@@ -434,8 +439,92 @@ pub async fn initiate_gallery_payment(
 // NOWY HANDLER: Obsługuje wylogowanie
 pub async fn logout(session: Session) -> Result<Redirect, AppError> {
     // Czyścimy sesję, usuwając wszystkie zapisane w niej dane
-    session.clear();
+    session.clear().await;
     info!("Użytkownik pomyślnie wylogowany.");
     // Przekierowujemy na stronę główną
     Ok(Redirect::to("/"))
+}
+
+// NOWY HANDLER: Przełącza status online/offline
+pub async fn toggle_online_status(
+    session: Session,
+    State(state): State<AppState>,
+) -> Result<Html<String>, AppError> {
+    let erika_id = session
+        .get::<Uuid>("erika_id")
+        .await
+        .unwrap_or(None)
+        .ok_or(AppError::Unauthorized)?;
+
+    let new_status = Erika::toggle_online_status(erika_id, &state.db)
+        .await
+        .map_err(|_| AppError::InternalServerError)?;
+
+    info!("Zmieniono status online dla {}: {}", erika_id, new_status);
+
+    // Zwracamy zaktualizowany fragment HTML przycisku
+    Ok(Html(render_status_button(new_status)))
+}
+
+// NOWA FUNKCJA POMOCNICZA: Renderuje przycisk statusu
+fn render_status_button(is_online: bool) -> String {
+    maud::html! {
+        // Ten div zostanie podmieniony przez HTMX
+        div id="status-button-container" {
+            @if is_online {
+                button hx-post="/panel/status-toggle" hx-target="#status-button-container" hx-swap="outerHTML"
+                       class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md transition duration-300" {
+                    "● Jesteś Online (Kliknij, aby przejść Offline)"
+                }
+            } @else {
+                button hx-post="/panel/status-toggle" hx-target="#status-button-container" hx-swap="outerHTML"
+                       class="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition duration-300" {
+                    "○ Jesteś Offline (Kliknij, aby przejść Online)"
+                }
+            }
+        }
+    }.into_string()
+}
+
+// NOWY HANDLER: Wyświetla panel do streamowania
+pub async fn show_stream_panel(session: Session) -> Result<Html<String>, AppError> {
+    // Sprawdzamy, czy użytkownik jest zalogowany
+    session
+        .get::<Uuid>("erika_id")
+        .await
+        .unwrap_or(None)
+        .ok_or(AppError::Unauthorized)?;
+
+    let content = maud::html! {
+        div class="max-w-7xl mx-auto" {
+            a href="/panel" class="inline-block mb-6 text-blue-400 hover:text-blue-300 transition-colors" {
+                "← Wróć do głównego panelu"
+            }
+            h1 class="text-3xl font-bold text-white mb-6" { "Panel Twojej Kamerki" }
+
+            // POPRAWKA: Usunięto zbędny znak `>` przed `{`
+            div class="grid grid-cols-1 lg:grid-cols-3 gap-6" {
+                // Kolumna z wideo
+                div class="lg:col-span-2 bg-gray-800 p-4 rounded-lg shadow-lg" {
+                    // Główny widok - tutaj będzie wideo użytkownika
+                    div class="bg-black aspect-video w-full mb-4 rounded flex items-center justify-center" {
+                        p class="text-gray-500" { "Oczekiwanie na połączenie z użytkownikiem..." }
+                    }
+                    // Miniaturka z własnym podglądem
+                    div class="w-1/4 bg-black aspect-video rounded float-right flex items-center justify-center" {
+                        p class="text-gray-500 text-sm" { "Twój podgląd" }
+                    }
+                }
+                // Kolumna z czatem i kontrolkami
+                div class="bg-gray-800 p-4 rounded-lg shadow-lg" {
+                    h2 class="text-xl font-semibold text-white mb-4" { "Czat" }
+                    div class="h-96 bg-gray-700 rounded p-2 mb-4" {
+                        // Tutaj będą wiadomości
+                    }
+                    input type="text" placeholder="Napisz wiadomość..." class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white";
+                }
+            }
+        }
+    };
+    Ok(Html(layout::page("Panel Kamerki", content).into_string()))
 }

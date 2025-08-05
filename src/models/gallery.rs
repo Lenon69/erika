@@ -76,4 +76,20 @@ impl Gallery {
             .fetch_optional(db)
             .await
     }
+
+    // NOWA METODA: Znajduje galerię tylko jeśli ID i właściciel się zgadzają
+    pub async fn find_by_id_and_erika_id(
+        id: Uuid,
+        erika_id: Uuid,
+        db: &PgPool,
+    ) -> Result<Option<Self>, sqlx::Error> {
+        sqlx::query_as!(
+            Gallery,
+            "SELECT * FROM galleries WHERE id = $1 AND erika_id = $2",
+            id,
+            erika_id
+        )
+        .fetch_optional(db)
+        .await
+    }
 }

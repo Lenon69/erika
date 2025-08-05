@@ -167,4 +167,15 @@ impl Erika {
 
         Ok(())
     }
+
+    // NOWA METODA: Przełącza status is_online i zwraca nowy status
+    pub async fn toggle_online_status(id: Uuid, db: &PgPool) -> Result<bool, sqlx::Error> {
+        let result = sqlx::query!(
+            "UPDATE erikas SET is_online = NOT is_online WHERE id = $1 RETURNING is_online",
+            id
+        )
+        .fetch_one(db)
+        .await?;
+        Ok(result.is_online)
+    }
 }

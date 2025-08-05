@@ -13,7 +13,7 @@ use serde::Deserialize;
 use std::path::Path;
 use tokio::fs;
 use tower_sessions::Session;
-use tracing::info;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 #[derive(Deserialize)]
@@ -99,19 +99,17 @@ pub async fn show_single_gallery_page(
     session: Session,
     State(state): State<AppState>,
 ) -> Result<Html<String>, AppError> {
-    let _erika_id = session
+    let erika_id = session
         .get::<Uuid>("erika_id")
         .await
         .unwrap_or(None)
         .ok_or(AppError::Unauthorized)?;
 
-    // TODO: W przyszłości warto sprawdzić, czy ta galeria na pewno należy do zalogowanej Eriki.
-
     // Pobieramy dane galerii, żeby wypełnić formularz
-    let gallery = Gallery::find_by_id(gallery_id, &state.db)
-        .await // <-- POTRZEBUJEMY TEJ FUNKCJI
+    let gallery = Gallery::find_by_id_and_erika_id(gallery_id, erika_id, &state.db) // <-- ZMIANA
+        .await
         .map_err(|_| AppError::InternalServerError)?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(AppError::Unauthorized)?; // Zwróć błąd, jeśli galeria nie należy do tej Eriki
 
     let photos = Photo::find_by_gallery_id(gallery_id, &state.db)
         .await
@@ -244,13 +242,16 @@ pub async fn update_gallery(
     State(state): State<AppState>,
     Form(payload): Form<UpdateGalleryPayload>,
 ) -> Result<Redirect, AppError> {
-    let _erika_id = session
+    let erika_id = session
         .get::<Uuid>("erika_id")
         .await
         .unwrap_or(None)
         .ok_or(AppError::Unauthorized)?;
 
-    // TODO: Weryfikacja, czy galeria należy do zalogowanej Eriki
+    Gallery::find_by_id_and_erika_id(gallery_id, erika_id, &state.db)
+        .await
+        .map_err(|_| AppError::InternalServerError)?
+        .ok_or(AppError::Unauthorized)?;
 
     Gallery::update_details(
         gallery_id,
@@ -270,26 +271,44 @@ pub async fn delete_photo(
     session: Session,
     State(state): State<AppState>,
 ) -> Result<Html<&'static str>, AppError> {
-    let _erika_id = session
+    let erika_id = session
         .get::<Uuid>("erika_id")
         .await
         .unwrap_or(None)
         .ok_or(AppError::Unauthorized)?;
 
-    // TODO: Weryfikacja, czy zdjęcie na pewno należy do zalogowanej Eriki
+    // 1. Sprawdź, czy galeria należy do zalogowanej Eriki
+    let gallery = Gallery::find_by_id_and_erika_id(gallery_id, erika_id, &state.db)
+        .await
+        .map_err(|_| AppError::InternalServerError)?
+        .ok_or(AppError::Unauthorized)?;
 
-    // Usunięcie z bazy danych
+    // 2. Znajdź zdjęcie, aby uzyskać jego URL
+    let photo = Photo::find_by_id(photo_id, &state.db)
+        .await
+        .map_err(|_| AppError::InternalServerError)?
+        .ok_or(AppError::NotFound)?;
+
+    // Upewnij się, że zdjęcie jest w odpowiedniej galerii
+    if photo.gallery_id != gallery.id {
+        return Err(AppError::Unauthorized);
+    }
+
+    // 3. Usuń plik z dysku
+    // Usuwamy wiodący '/' z URL, aby otrzymać ścieżkę do pliku
+    let file_path = photo.file_url.strip_prefix('/').unwrap_or(&photo.file_url);
+    fs::remove_file(file_path).await.map_err(|e| {
+        warn!("Nie udało się usunąć pliku {}: {}", file_path, e);
+        AppError::InternalServerError
+    })?;
+
+    // 4. Usuń wpis z bazy danych
     Photo::delete(photo_id, &state.db)
         .await
         .map_err(|_| AppError::InternalServerError)?;
 
-    // TODO: Usunięcie pliku z folderu /uploads
-    // Na razie pomijamy ten krok, aby skupić się na logice.
-    // W wersji produkcyjnej jest to konieczne, aby nie zostawiać "śmieci" na serwerze.
-
     info!("Usunięto zdjęcie o ID: {}", photo_id);
-
-    Ok(Html(""))
+    Ok(Html("")) // Zwracamy pusty HTML dla HTMX
 }
 
 // NOWY HANDLER: Zwraca fragment HTML z potwierdzeniem usunięcia
@@ -297,23 +316,26 @@ pub async fn confirm_delete_photo(
     AxumPath((gallery_id, photo_id)): AxumPath<(Uuid, Uuid)>,
 ) -> Result<Html<String>, AppError> {
     let content = maud::html! {
-        // Ten div zastąpi zdjęcie, na którym kliknięto "Usuń"
-        div class="h-48 bg-gray-800 rounded-lg border-2 border-red-500 flex flex-col items-center justify-center p-4 text-center" {
-            p class="text-white mb-4" { "Czy na pewno chcesz usunąć to zdjęcie?" }
-            div class="flex gap-4" {
-                // Przycisk, który faktycznie usuwa zdjęcie (metodą POST)
-                button hx-post=(format!("/panel/galleries/{}/photo/{}/delete", gallery_id, photo_id))
-                       hx-target="closest .photo-container" // Cel: najbliższy kontener zdjęcia
-                       hx-swap="outerHTML" // Akcja: zamień cały kontener na pustą odpowiedź (efekt zniknięcia)
-                       class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md" {
-                    "Tak, usuń"
-                }
-                // Przycisk, który anuluje i przywraca widok zdjęcia
-                button hx-get=(format!("/panel/galleries/{}/photo/{}", gallery_id, photo_id))
-                       hx-target="closest .photo-container"
-                       hx-swap="outerHTML"
-                       class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md" {
-                    "Anuluj"
+        // --- POPRAWKA TUTAJ: Opakowujemy wszystko w ten sam kontener ---
+        div class="photo-container" {
+            // Wewnętrzny div ze stylami dla samego panelu potwierdzenia
+            div class="h-48 bg-gray-800 rounded-lg border-2 border-red-500 flex flex-col items-center justify-center p-4 text-center" {
+                p class="text-white mb-4" { "Czy na pewno chcesz usunąć to zdjęcie?" }
+                div class="flex gap-4" {
+                    // Przycisk "Tak, usuń" - jego atrybuty HTMX są już poprawne
+                    button hx-post=(format!("/panel/galleries/{}/photo/{}/delete", gallery_id, photo_id))
+                           hx-target="closest .photo-container"
+                           hx-swap="outerHTML"
+                           class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md" {
+                        "Tak, usuń"
+                    }
+                    // Przycisk "Anuluj" - jego atrybuty HTMX są już poprawne
+                    button hx-get=(format!("/panel/galleries/{}/photo/{}", gallery_id, photo_id))
+                           hx-target="closest .photo-container"
+                           hx-swap="outerHTML"
+                           class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md" {
+                        "Anuluj"
+                    }
                 }
             }
         }

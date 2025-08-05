@@ -44,7 +44,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app_state = AppState { db: pool };
 
     let app = router::create_router(app_state).layer(session_layer);
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
 
     let listener = TcpListener::bind(addr).await?;
     info!("Serwer nasłuchuje na http://{}", addr);

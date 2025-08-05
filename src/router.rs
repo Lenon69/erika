@@ -55,6 +55,11 @@ pub fn create_router(app_state: AppState) -> Router {
             get(erika_handlers::initiate_gallery_payment),
         )
         .route("/logout", post(erika_handlers::logout))
+        .route("/panel/stream", get(erika_handlers::show_stream_panel))
+        .route(
+            "/panel/status-toggle",
+            post(erika_handlers::toggle_online_status),
+        )
         .nest_service("/uploads", ServeDir::new("uploads"))
         .with_state(app_state)
 }
