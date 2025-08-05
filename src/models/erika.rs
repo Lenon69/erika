@@ -1,10 +1,11 @@
 use argon2::{
-    Argon2, PasswordHash,
+    Argon2,
     password_hash::{PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},
 };
 use serde::Serialize;
 use sqlx::PgPool;
 use tokio::task;
+use tracing::debug;
 use uuid::Uuid;
 
 #[derive(sqlx::FromRow, Clone, Serialize)]
@@ -65,7 +66,7 @@ impl Erika {
     ) -> Result<Option<Self>, sqlx::Error> {
         sqlx::query_as!(
             Erika,
-            "SELECT id, username, email, password_hash FROM erikas WHERE username = $1",
+            "SELECT id, username, email, password_hash FROM erikas WHERE LOWER(username) = LOWER($1)",
             username
         )
         .fetch_optional(db)
@@ -74,15 +75,35 @@ impl Erika {
 
     /// Weryfikuje podane hasło z hashem zapisanym w bazie.
     pub fn verify_password(&self, password: &str) -> bool {
+        debug!(
+            "Rozpoczynam weryfikację hasła dla użytkownika: {}",
+            self.username
+        ); // <-- LOG A
+
         // Parsujemy hash zapisany w bazie
-        if let Ok(parsed_hash) = PasswordHash::new(&self.password_hash) {
-            // Weryfikujemy hasło. To również operacja intensywna dla CPU,
-            // ale dla pojedynczego logowania wykonanie jej synchronicznie jest akceptowalne.
-            Argon2::default()
-                .verify_password(password.as_bytes(), &parsed_hash)
-                .is_ok() // .is_ok() zwróci 'true' jeśli hasło jest poprawne
-        } else {
-            false
+        let parsed_hash = match argon2::password_hash::PasswordHash::new(&self.password_hash) {
+            Ok(hash) => {
+                debug!("Hash z bazy poprawnie sparsowany."); // <-- LOG B (sukces)
+                hash
+            }
+            Err(e) => {
+                debug!("BŁĄD parsowania hasha z bazy: {}", e); // <-- LOG B (błąd)
+                return false;
+            }
+        };
+
+        // Weryfikujemy hasło
+        let result = Argon2::default().verify_password(password.as_bytes(), &parsed_hash);
+
+        match result {
+            Ok(_) => {
+                debug!("WYNIK: Hasło jest poprawne."); // <-- LOG C (sukces)
+                true
+            }
+            Err(e) => {
+                debug!("WYNIK: Hasło jest niepoprawne. Błąd weryfikacji: {}", e); // <-- LOG C (błąd)
+                false
+            }
         }
     }
 

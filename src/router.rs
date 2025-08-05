@@ -2,9 +2,10 @@
 
 use crate::{app_state::AppState, handlers::erika_handlers};
 use axum::{
-    Router,
-    routing::{get, post}, // Dodajemy `post`
+    Router, // Dodajemy `post`
+    routing::{get, post},
 };
+use tower_http::services::ServeDir;
 
 pub fn create_router(app_state: AppState) -> Router {
     Router::new()
@@ -18,5 +19,6 @@ pub fn create_router(app_state: AppState) -> Router {
             "/panel",
             get(erika_handlers::erika_panel).post(erika_handlers::update_erika_profile),
         )
+        .nest_service("/uploads", ServeDir::new("uploads"))
         .with_state(app_state)
 }
