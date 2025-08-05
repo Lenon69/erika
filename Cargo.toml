@@ -1,0 +1,20 @@
+[package]
+name = "erika_system"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+argon2 = "0.5.3"
+axum = { version = "0.8.4", features = ["http2"] }
+dotenvy = "0.15.7"
+maud = { version = "0.27.0", features = ["axum"] }
+rand_core = { version = "0.9.3", features = ["std"] }
+serde = { version = "1.0.219", features = ["derive"] }
+sqlx = { version = "0.8.6", features = ["runtime-tokio", "postgres", "uuid", "chrono", "derive"] }
+time = { version = "0.3.41", features = ["serde"] }
+tokio = { version = "1.47.1", features = ["full"] }
+tower-sessions = "0.14.0"
+tower-sessions-sqlx-store = { version = "0.15.0", features = ["postgres"] }
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+uuid = { version = "1.17.0", features = ["v4", "serde"] }
