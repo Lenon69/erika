@@ -1,5 +1,7 @@
 // src/handlers/gallery_handlers.rs
+
 use super::layout;
+use crate::models::gallery::GalleryCategory;
 use crate::models::photo::Photo;
 use crate::{app_state::AppState, errors::AppError, models::gallery::Gallery};
 use axum::extract::{Multipart, Path as AxumPath};
@@ -11,6 +13,8 @@ use axum::{
 use bigdecimal::BigDecimal;
 use serde::Deserialize;
 use std::path::Path;
+use std::str::FromStr;
+use strum::IntoEnumIterator;
 use tokio::fs;
 use tower_sessions::Session;
 use tracing::{info, warn};
@@ -18,7 +22,7 @@ use uuid::Uuid;
 
 #[derive(Deserialize)]
 pub struct CreateGalleryPayload {
-    pub name: String,
+    name: GalleryCategory,
 }
 
 // Handler do wyświetlania strony zarządzania galeriami
@@ -46,10 +50,16 @@ pub async fn show_galleries_page(
             // Formularz do tworzenia nowej galerii
             div class="bg-gray-800 p-6 rounded-lg shadow-lg mb-8" {
                 h2 class="text-xl font-semibold text-white mb-4" { "Stwórz nową galerię" }
-                form action="/panel/galleries" method="post" class="flex items-center gap-4" {
-                    input type="text" name="name" placeholder="Nazwa galerii..." required
-                          class="flex-grow px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500";
-                    button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-300" { "Stwórz" }
+                    form action="/panel/galleries" method="post" class="flex items-center gap-4" {
+                        // Zamieniamy pole tekstowe na listę rozwijaną
+                        select name="name" required
+                               class="flex-grow px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500" {
+                            option value="" disabled selected { "Wybierz kategorię..." }
+                            @for category in GalleryCategory::iter() {
+                                option value=(category.to_string()) { (category.to_string()) }
+                            }
+                        }
+                        button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-300" { "Stwórz" }
                 }
             }
 
@@ -86,7 +96,7 @@ pub async fn create_gallery(
         .unwrap_or(None)
         .ok_or(AppError::Unauthorized)?;
 
-    Gallery::create(erika_id, &payload.name, &state.db)
+    Gallery::create(erika_id, payload.name, &state.db)
         .await
         .map_err(|_| AppError::InternalServerError)?;
 
@@ -230,12 +240,13 @@ pub async fn upload_photo(
 
 #[derive(Deserialize)]
 pub struct UpdateGalleryPayload {
-    name: String,
-    description: String,
-    price_pln: Option<BigDecimal>,
+    pub name: String,
+    pub description: String,
+    pub price_pln: Option<BigDecimal>,
 }
 
 // NOWY HANDLER: Aktualizuje dane galerii
+
 pub async fn update_gallery(
     AxumPath(gallery_id): AxumPath<Uuid>,
     session: Session,
@@ -253,9 +264,15 @@ pub async fn update_gallery(
         .map_err(|_| AppError::InternalServerError)?
         .ok_or(AppError::Unauthorized)?;
 
+    // --- POPRAWKA TUTAJ ---
+    // 1. Parsujemy String z formularza na nasz enum GalleryCategory
+    let category =
+        GalleryCategory::from_str(&payload.name).map_err(|_| AppError::InternalServerError)?; // Obsłuż błąd, jeśli nazwa jest nieprawidłowa
+
+    // 2. Przekazujemy sparsowaną kategorię do modelu
     Gallery::update_details(
         gallery_id,
-        &payload.name,
+        category, // <-- Przekazujemy poprawny typ
         &payload.description,
         payload.price_pln,
         &state.db,

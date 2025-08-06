@@ -502,21 +502,22 @@ pub async fn show_stream_panel(session: Session) -> Result<Html<String>, AppErro
             }
             h1 class="text-3xl font-bold text-white mb-6" { "Panel Twojej Kamerki" }
 
-            // POPRAWKA: Usunięto zbędny znak `>` przed `{`
-            div class="grid grid-cols-1 lg:grid-cols-3 gap-6" {
+            // --- POPRAWKA TUTAJ: Zmieniamy Grida na Flexbox ---
+            // Domyślnie flex-col (pionowo), na dużych ekranach (lg) flex-row (poziomo)
+            div class="flex flex-col lg:flex-row gap-6" {
                 // Kolumna z wideo
-                div class="lg:col-span-2 bg-gray-800 p-4 rounded-lg shadow-lg" {
-                    // Główny widok - tutaj będzie wideo użytkownika
+                div class="lg:w-2/3 bg-gray-800 p-4 rounded-lg shadow-lg" {
+                    // Główny widok
                     div class="bg-black aspect-video w-full mb-4 rounded flex items-center justify-center" {
-                        p class="text-gray-500" { "Oczekiwanie na połączenie z użytkownikiem..." }
+                        p class="text-gray-500" { "Oczekiwanie na połączenie..." }
                     }
-                    // Miniaturka z własnym podglądem
-                    div class="w-1/4 bg-black aspect-video rounded float-right flex items-center justify-center" {
+                    // Miniaturka
+                    div class="w-1/2 md:w-1/3 lg:w-1/4 bg-black aspect-video rounded ml-auto flex items-center justify-center" {
                         p class="text-gray-500 text-sm" { "Twój podgląd" }
                     }
                 }
                 // Kolumna z czatem i kontrolkami
-                div class="bg-gray-800 p-4 rounded-lg shadow-lg" {
+                div class="lg:w-1/3 bg-gray-800 p-4 rounded-lg shadow-lg" {
                     h2 class="text-xl font-semibold text-white mb-4" { "Czat" }
                     div class="h-96 bg-gray-700 rounded p-2 mb-4" {
                         // Tutaj będą wiadomości
