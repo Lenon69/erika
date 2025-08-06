@@ -8,6 +8,11 @@ use tokio::task;
 use tracing::debug;
 use uuid::Uuid;
 
+#[derive(sqlx::FromRow)]
+pub struct ErikaAuth {
+    pub role: String,
+}
+
 #[derive(sqlx::FromRow, Clone, Serialize)]
 pub struct Erika {
     pub id: Uuid,
@@ -17,6 +22,7 @@ pub struct Erika {
     pub profile_image_url: Option<String>,
     pub bio: Option<String>,
     pub is_online: bool,
+    pub is_approved: bool,
 }
 
 impl Erika {
@@ -69,7 +75,8 @@ impl Erika {
     ) -> Result<Option<Self>, sqlx::Error> {
         sqlx::query_as!(
             Erika,
-            "SELECT id, username, email, password_hash, profile_image_url, bio, is_online FROM erikas WHERE username = $1",
+            "SELECT id, username, email, password_hash, profile_image_url, bio, is_online, is_approved FROM erikas
+             WHERE username = $1 AND is_approved = TRUE",
             username
         )
         .fetch_optional(db)
@@ -83,7 +90,7 @@ impl Erika {
     ) -> Result<Option<Self>, sqlx::Error> {
         sqlx::query_as!(
             Erika,
-            "SELECT id, username, email, password_hash, bio, is_online, profile_image_url FROM erikas WHERE LOWER(username) = LOWER($1)",
+            "SELECT id, username, email, password_hash, bio, is_online, profile_image_url, is_approved FROM erikas WHERE LOWER(username) = LOWER($1)",
             username
         )
         .fetch_optional(db)
@@ -128,7 +135,7 @@ impl Erika {
     pub async fn find_by_id(id: Uuid, db: &PgPool) -> Result<Option<Self>, sqlx::Error> {
         sqlx::query_as!(
             Erika,
-            "SELECT id, username, email, password_hash, profile_image_url, bio, is_online FROM erikas WHERE id = $1",
+            "SELECT id, username, email, password_hash, profile_image_url, bio, is_online, is_approved FROM erikas WHERE id = $1",
             id
         )
         .fetch_optional(db)
@@ -139,8 +146,9 @@ impl Erika {
     pub async fn find_active(db: &PgPool) -> Result<Vec<Self>, sqlx::Error> {
         sqlx::query_as!(
             Erika,
-            // Na razie bierzemy wszystkie dla testów, w przyszłości dodamy `WHERE is_approved = TRUE AND is_online = TRUE`
-            "SELECT id, username, email, password_hash, profile_image_url, bio, is_online FROM erikas ORDER BY is_online DESC, username"
+            "SELECT id, username, email, password_hash, profile_image_url, bio, is_online, is_approved FROM erikas
+             WHERE is_approved = TRUE
+             ORDER BY is_online DESC, username"
         )
         .fetch_all(db).await
     }
@@ -177,5 +185,52 @@ impl Erika {
         .fetch_one(db)
         .await?;
         Ok(result.is_online)
+    }
+
+    // NOWA METODA: Pobiera tylko rolę do weryfikacji w middleware
+    pub async fn find_by_id_for_auth(
+        id: Uuid,
+        db: &PgPool,
+    ) -> Result<Option<ErikaAuth>, sqlx::Error> {
+        sqlx::query_as!(
+            ErikaAuth,
+            r#"SELECT role::TEXT as "role!" FROM erikas WHERE id = $1"#,
+            id
+        )
+        .fetch_optional(db)
+        .await
+    }
+
+    pub async fn find_all(db: &PgPool) -> Result<Vec<Self>, sqlx::Error> {
+        sqlx::query_as!(Erika, "SELECT id, username, email, password_hash, profile_image_url, bio, is_online, is_approved FROM erikas ORDER BY username")
+            .fetch_all(db).await
+    }
+
+    // NOWA METODA: Aktualizuje tylko dane tekstowe (dla admina)
+    pub async fn update_profile_details(
+        id: Uuid,
+        username: &str,
+        email: &str,
+        bio: &str,
+        db: &PgPool,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query!(
+            "UPDATE erikas SET username = $1, email = $2, bio = $3 WHERE id = $4",
+            username,
+            email,
+            bio,
+            id
+        )
+        .execute(db)
+        .await?;
+        Ok(())
+    }
+
+    // NOWA METODA: Akceptuje profil Eriki
+    pub async fn approve(id: Uuid, db: &PgPool) -> Result<(), sqlx::Error> {
+        sqlx::query!("UPDATE erikas SET is_approved = TRUE WHERE id = $1", id)
+            .execute(db)
+            .await?;
+        Ok(())
     }
 }

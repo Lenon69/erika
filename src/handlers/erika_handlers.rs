@@ -33,6 +33,13 @@ pub struct LoginPayload {
     pub password: String,
 }
 
+#[derive(Deserialize)]
+pub struct UpdateProfilePayload {
+    pub username: String,
+    pub email: String,
+    pub bio: String,
+}
+
 // Handler formularza rejestracji
 pub async fn show_register_form() -> Html<String> {
     let content = maud::html! {

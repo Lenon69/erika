@@ -1,6 +1,7 @@
 mod app_state;
 mod errors;
 mod handlers;
+mod middleware;
 mod models;
 mod router;
 

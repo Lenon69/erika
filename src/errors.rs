@@ -3,6 +3,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 
+#[derive()]
 pub enum AppError {
     InternalServerError,
     Unauthorized,
@@ -23,5 +24,12 @@ impl IntoResponse for AppError {
             AppError::NotFound => (StatusCode::NOT_FOUND, "Nie znaleziono zasobu"),
         };
         (status, error_message).into_response()
+    }
+}
+
+impl From<sqlx::Error> for AppError {
+    fn from(_err: sqlx::Error) -> Self {
+        // Na razie każdy błąd z bazy traktujemy jako wewnętrzny błąd serwera.
+        AppError::InternalServerError
     }
 }

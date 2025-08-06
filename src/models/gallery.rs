@@ -18,8 +18,8 @@ pub enum GalleryCategory {
     Cipka,
     #[strum(serialize = "Całe Ciało")]
     CałeCiało,
-    OtwieramCipkęDlaCiebie,
     #[strum(serialize = "Otwieram Cipkę dla Ciebie")]
+    OtwieramCipkęDlaCiebie,
     Analne,
     #[strum(serialize = "Zabawy wibratorem")]
     ZabawyWibratorem,

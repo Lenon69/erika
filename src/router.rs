@@ -2,15 +2,34 @@
 
 use crate::{
     app_state::AppState,
-    handlers::{erika_handlers, gallery_handlers},
+    handlers::{admin_handlers, erika_handlers, gallery_handlers},
+    middleware,
 };
+
 use axum::{
     Router, // Dodajemy `post`
+    middleware as axum_middleware,
     routing::{get, post},
 };
 use tower_http::services::ServeDir;
 
 pub fn create_router(app_state: AppState) -> Router {
+    // Grupujemy ścieżki admina i nakładamy na nie nasz middleware
+    let admin_routes = Router::new()
+        .route("/", get(admin_handlers::admin_dashboard))
+        .route(
+            "/erika/{erika_id}",
+            get(admin_handlers::show_edit_erika_form).post(admin_handlers::update_erika_by_admin),
+        )
+        .route(
+            "/erika/{erika_id}/approve",
+            post(admin_handlers::approve_erika),
+        )
+        .route_layer(axum_middleware::from_fn_with_state(
+            app_state.clone(),
+            middleware::require_admin,
+        ));
+
     Router::new()
         .route("/", get(erika_handlers::homepage))
         .route(
@@ -60,6 +79,7 @@ pub fn create_router(app_state: AppState) -> Router {
             "/panel/status-toggle",
             post(erika_handlers::toggle_online_status),
         )
+        .nest("/admin", admin_routes)
         .nest_service("/uploads", ServeDir::new("uploads"))
         .with_state(app_state)
 }
