@@ -174,7 +174,7 @@ pub async fn show_single_gallery_page(
             @if photos.is_empty() {
                 p class="text-gray-400" { "Brak zdjęć w tej galerii." }
             } @else {
-                div class="grid grid-cols-2 md:grid-cols-4 gap-4" {
+                div id="photo-grid" class="grid grid-cols-2 md:grid-cols-4 gap-4" {
                     @for photo in photos {
                         (maud::PreEscaped(render_photo_partial(gallery_id, &photo)))
                     }
@@ -287,7 +287,7 @@ pub async fn delete_photo(
     AxumPath((gallery_id, photo_id)): AxumPath<(Uuid, Uuid)>,
     session: Session,
     State(state): State<AppState>,
-) -> Result<Html<&'static str>, AppError> {
+) -> Result<Html<String>, AppError> {
     let erika_id = session
         .get::<Uuid>("erika_id")
         .await
@@ -325,34 +325,28 @@ pub async fn delete_photo(
         .map_err(|_| AppError::InternalServerError)?;
 
     info!("Usunięto zdjęcie o ID: {}", photo_id);
-    Ok(Html("")) // Zwracamy pusty HTML dla HTMX
+    get_photos_grid_partial(gallery_id, &state.db).await
 }
 
 // NOWY HANDLER: Zwraca fragment HTML z potwierdzeniem usunięcia
 pub async fn confirm_delete_photo(
     AxumPath((gallery_id, photo_id)): AxumPath<(Uuid, Uuid)>,
 ) -> Result<Html<String>, AppError> {
+    // Już nie potrzebujemy opakowującego diva `photo-container`
     let content = maud::html! {
-        // --- POPRAWKA TUTAJ: Opakowujemy wszystko w ten sam kontener ---
-        div class="photo-container" {
-            // Wewnętrzny div ze stylami dla samego panelu potwierdzenia
-            div class="h-48 bg-gray-800 rounded-lg border-2 border-red-500 flex flex-col items-center justify-center p-4 text-center" {
-                p class="text-white mb-4" { "Czy na pewno chcesz usunąć to zdjęcie?" }
-                div class="flex gap-4" {
-                    // Przycisk "Tak, usuń" - jego atrybuty HTMX są już poprawne
-                    button hx-post=(format!("/panel/galleries/{}/photo/{}/delete", gallery_id, photo_id))
-                           hx-target="closest .photo-container"
-                           hx-swap="outerHTML"
-                           class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md" {
-                        "Tak, usuń"
-                    }
-                    // Przycisk "Anuluj" - jego atrybuty HTMX są już poprawne
-                    button hx-get=(format!("/panel/galleries/{}/photo/{}", gallery_id, photo_id))
-                           hx-target="closest .photo-container"
-                           hx-swap="outerHTML"
-                           class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md" {
-                        "Anuluj"
-                    }
+        div class="text-center" { // Uproszczone stylowanie
+            p class="text-white mb-4 text-lg" { "Czy na pewno chcesz usunąć to zdjęcie?" }
+            div class="flex justify-center gap-4" {
+                button hx-post=(format!("/panel/galleries/{}/photo/{}/delete", gallery_id, photo_id))
+                       // WAŻNE: Po usunięciu, musimy odświeżyć listę zdjęć
+                       hx-target="#photo-grid" // Celujemy w siatkę zdjęć
+                       hx-swap="innerHTML"
+                       class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md" {
+                    "Tak, usuń"
+                }
+                button "@click"="modalOpen = false" // Zamykamy modal za pomocą Alpine.js
+                       class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md" {
+                    "Anuluj"
                 }
             }
         }
@@ -382,13 +376,37 @@ fn render_photo_partial(gallery_id: Uuid, photo: &crate::models::photo::Photo) -
         div class="photo-container bg-gray-800 rounded-lg overflow-hidden shadow-lg relative group" {
             img src=(photo.file_url) alt="Zdjęcie z galerii" class="w-full h-48 object-cover";
             div class="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity" {
+                // --- POPRAWKA TUTAJ ---
                 button hx-get=(format!("/panel/photo/delete-confirm/{}/{}", gallery_id, photo.id))
-                       hx-target="closest .photo-container"
-                       hx-swap="outerHTML"
+                       hx-target="#modal-content" // Cel: nasz nowy div w layoucie
+                       hx-swap="innerHTML" // Akcja: podmień tylko treść wewnątrz modala
                        class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md" {
                     "Usuń"
                 }
             }
         }
     }.into_string()
+}
+
+// NOWY HANDLER: Zwraca tylko fragment HTML z siatką zdjęć
+async fn get_photos_grid_partial(
+    gallery_id: Uuid,
+    db: &sqlx::PgPool,
+) -> Result<Html<String>, AppError> {
+    let photos = Photo::find_by_gallery_id(gallery_id, db)
+        .await
+        .map_err(|_| AppError::InternalServerError)?;
+
+    let content = maud::html! {
+        @if photos.is_empty() {
+            p class="text-gray-400" { "Brak zdjęć w tej galerii." }
+        } @else {
+            div id="photo-grid" class="grid grid-cols-2 md:grid-cols-4 gap-4" {
+                @for photo in photos {
+                    (maud::PreEscaped(render_photo_partial(gallery_id, &photo)))
+                }
+            }
+        }
+    };
+    Ok(Html(content.into_string()))
 }

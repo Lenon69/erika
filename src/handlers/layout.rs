@@ -17,7 +17,7 @@ pub fn page(title: &str, content: Markup) -> Markup {
                 script src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.9/dist/cdn.min.js" defer {}
                 title { (title) " - Erika" }
             }
-            body class="bg-gray-900 text-gray-200 antialiased" {
+            body x-data="{ modalOpen: false }" class="bg-gray-900 text-gray-200 antialiased" {
 
                 // --- NOWA SEKCJA: NAGŁÓWEK Z NAWIGACJĄ ---
                 header class="bg-gray-800/70 backdrop-blur-lg shadow-md sticky top-0 z-50" {
@@ -41,6 +41,28 @@ pub fn page(title: &str, content: Markup) -> Markup {
                 main class="container mx-auto mt-10 px-4" {
                     // Renderujemy unikalną zawartość
                     (content)
+                }
+
+
+            // --- NOWY KOMPONENT MODALA Z ALPINE.JS ---
+            // Ten div będzie na wierzchu wszystkiego i będzie nasłuchiwał na specjalne zdarzenia
+            div x-show="modalOpen"
+                "@htmx:after-swap.window"="modalOpen = true" // Pokaż modal, gdy HTMX załaduje do niego treść
+                "@htmx:after-request.window"="if(event.detail.successful) modalOpen = false" // Ukryj modal po udanej akcji (np. usunięciu)
+                "x-on:keydown.escape.window"="modalOpen = false" // Ukryj modal po wciśnięciu Escape
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+                style="display: none;" {
+
+                // Tło, które po kliknięciu zamyka modal
+                div class="absolute inset-0" "@click"="modalOpen = false" {}
+
+                // Właściwe okno modala
+                div id="modal-content"
+                     x-show="modalOpen"
+                     x-transition
+                     class="relative bg-gray-800 rounded-lg shadow-xl p-8 z-10" {
+                    // Treść tego diva będzie dynamicznie podmieniana przez HTMX
+                    }
                 }
             }
         }
