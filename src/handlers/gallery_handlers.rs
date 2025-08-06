@@ -376,8 +376,10 @@ pub async fn get_photo_partial(
 fn render_photo_partial(gallery_id: Uuid, photo: &crate::models::photo::Photo) -> String {
     maud::html! {
         div class="photo-container bg-gray-800 rounded-lg overflow-hidden shadow-lg relative group" {
-            img src=(photo.file_url) alt="Zdjęcie z galerii" class="w-full h-48 object-cover";
-            div class="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity" {
+            
+            img src=(photo.file_url) alt="Zdjęcie z galerii" class="w-full h-48 object-cover pointer-events-none";
+            
+            div class="absolute inset-0 z-10 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity" {
                 // --- POPRAWKA TUTAJ ---
                 button hx-get=(format!("/panel/photo/delete-confirm/{}/{}", gallery_id, photo.id))
                        hx-target="#modal-content" // Cel: nasz nowy div w layoucie
