@@ -12,6 +12,7 @@ use axum::{
 };
 use bigdecimal::BigDecimal;
 use serde::Deserialize;
+use serde::de::Error as _;
 use std::path::Path;
 use std::str::FromStr;
 use strum::IntoEnumIterator;
@@ -242,6 +243,7 @@ pub async fn upload_photo(
 pub struct UpdateGalleryPayload {
     pub name: String,
     pub description: String,
+    #[serde(deserialize_with = "empty_string_as_none")]
     pub price_pln: Option<BigDecimal>,
 }
 
@@ -409,4 +411,20 @@ async fn get_photos_grid_partial(
         }
     };
     Ok(Html(content.into_string()))
+}
+
+// --- NOWA FUNKCJA POMOCNICZA ---
+// Ta funkcja "uczy" serde, jak traktować puste stringi jako None dla liczb.
+fn empty_string_as_none<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: FromStr,
+    T::Err: std::fmt::Display,
+{
+    let s: &str = serde::Deserialize::deserialize(deserializer)?;
+    if s.is_empty() {
+        Ok(None)
+    } else {
+        s.parse::<T>().map(Some).map_err(D::Error::custom)
+    }
 }
