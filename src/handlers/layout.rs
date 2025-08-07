@@ -44,25 +44,22 @@ pub fn page(title: &str, content: Markup) -> Markup {
                 }
 
 
-            // --- NOWY KOMPONENT MODALA Z ALPINE.JS ---
-            // Ten div będzie na wierzchu wszystkiego i będzie nasłuchiwał na specjalne zdarzenia
+           // --- KOMPONENT MODALA ---
+            // Jest on zawsze na stronie, ale domyślnie ukryty (`x-show="modalOpen"`)
+            // Zmieniamy `@htmx:after-request.window` na `@close-modal.window`
             div x-show="modalOpen"
-                "@htmx:after-swap.window"="modalOpen = true" // Pokaż modal, gdy HTMX załaduje do niego treść
-                "@htmx:after-request.window"="if(event.detail.successful) modalOpen = false" // Ukryj modal po udanej akcji (np. usunięciu)
-                "x-on:keydown.escape.window"="modalOpen = false" // Ukryj modal po wciśnięciu Escape
+                "@close-modal.window"="modalOpen = false" // Zamknij modal tylko po otrzymaniu sygnału
+                "x-on:keydown.escape.window"="modalOpen = false"
                 class="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
                 style="display: none;" {
+                    // Półprzezroczyste tło, które zamyka modal po kliknięciu
+                    div class="absolute inset-0" "@click"="modalOpen = false" {}
 
-                // Tło, które po kliknięciu zamyka modal
-                div class="absolute inset-0" "@click"="modalOpen = false" {}
-
-                // Właściwe okno modala
-                div id="modal-content"
-                     x-show="modalOpen"
-                     x-transition
-                     class="relative bg-gray-800 rounded-lg shadow-xl p-8 z-10" {
-                    // Treść tego diva będzie dynamicznie podmieniana przez HTMX
-                    }
+                    // Kontener na treść, którą dynamicznie załaduje HTMX
+                    div id="modal-content"
+                         x-show="modalOpen"
+                         x-transition // Prosta animacja pojawiania się
+                         class="relative bg-gray-800 rounded-lg shadow-xl p-8 z-10" {}
                 }
             }
         }
